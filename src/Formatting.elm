@@ -1,28 +1,25 @@
-module Formatting
-    exposing
-        ( Format(..)
-        , (<>)
-        , map
-        , premap
-        , toFormatter
-        , apply
-        , print
-        , html
-        , s
-        , string
-        , int
-        , bool
-        , float
-        , number
-        , any
-        , wrap
-        , pad
-        , padLeft
-        , padRight
-        , dp
-        , roundTo
-        , uriFragment
-        )
+module Formatting exposing
+    ( Format(..)
+    , map
+    , premap
+    , toFormatter
+    , apply
+    , print
+    , html
+    , s
+    , string
+    , int
+    , bool
+    , float
+    , wrap
+    , pad
+    , padLeft
+    , padRight
+    , dp
+    , roundTo
+    , uriFragment
+    , bs
+    )
 
 {-| A type-safe string formatting library. It fulfils the need for
 string-interpolation or a `printf` function, without sacrificing Elm's
@@ -30,7 +27,6 @@ runtime guarantees or requiring any language-level changes. It also
 composes well, to make building up complex formatters easy.
 
 @docs Format
-@docs (<>)
 @docs map
 @docs premap
 @docs toFormatter
@@ -42,7 +38,6 @@ composes well, to make building up complex formatters easy.
 @docs int
 @docs bool
 @docs float
-@docs number
 @docs any
 @docs wrap
 @docs pad
@@ -51,11 +46,14 @@ composes well, to make building up complex formatters easy.
 @docs dp
 @docs roundTo
 @docs uriFragment
+
 -}
 
 import Html exposing (Html)
 import Http
 import String
+import Url
+
 
 
 ------------------------------------------------------------
@@ -68,15 +66,16 @@ create a formatting function, wrapped up in a way that makes it easy
 to compose.
 
 Build one of these up with primitives like `s`, `string` and `int`,
-join them together with `<>`, and when you're done, generate the final
+join them together with `|> bs`, and when you're done, generate the final
 printing function with `print`.
+
 
 ## Example
 
     import Formatting exposing (..)
 
     greeting =
-        s "Hello " <> string <> s "!"
+        s "Hello " |> bs string |> bs "!"
 
     print greeting "Kris"
 
@@ -87,99 +86,77 @@ printing function with `print`.
 
 Imagine you have an existing formatting rule you'd like to turn into a formatter:
 
-``` elm
-tweetSummary : Int -> String -> String
-tweetSummary starCount body =
-    "(" ++ toString starCount ++ ") " ++ body
-```
+    tweetSummary : Int -> String -> String
+    tweetSummary starCount body =
+        "(" ++ toString starCount ++ ") " ++ body
 
 First, wrap the type signature in brackets:
 
-``` elm
-tweetSummary : (Int -> String -> String)
-```
+    tweetSummary : Int -> String -> String
 
 Then change the result type to a variable. (That's where the magic
 begins - the Formatting library gets control of the final result
 type.):
 
-
-``` elm
-tweetSummary : (Int -> String -> r)
-```
+    tweetSummary : Int -> String -> r
 
 Now add `Format r` to the start.
 
-``` elm
-tweetSummary : Format r (Int -> String -> r)
-```
+    tweetSummary : Format r (Int -> String -> r)
 
 All very mechanical. Now for the function body. Let's recall what it
 looked like at the start:
 
-``` elm
-tweetSummary starCount body =
-    "(" ++ toString starCount ++ ") " ++ body
-```
+    tweetSummary starCount body =
+        "(" ++ toString starCount ++ ") " ++ body
 
 Change that into an anonymous function:
 
-
-``` elm
-tweetSummary =
-    (\starCount body ->
-        "(" ++ toString starCount ++ ") " ++ body
-    )
-```
+    tweetSummary =
+        \starCount body ->
+            "(" ++ toString starCount ++ ") " ++ body
 
 Now add in a `callback` function as the first argument:
 
-``` elm
-tweetSummary =
-    (\callback starCount body ->
-        "(" ++ toString starCount ++ ") " ++ body
-    )
-```
+    tweetSummary =
+        \callback starCount body ->
+            "(" ++ toString starCount ++ ") " ++ body
 
 Pass your function's result to that callback (using `<|` is the easy way):
 
-``` elm
-tweetSummary =
-    (\callback starCount body ->
-        callback <| "(" ++ toString starCount ++ ") " ++ body
-    )
-```
+    tweetSummary =
+        \callback starCount body ->
+            callback <| "(" ++ toString starCount ++ ") " ++ body
 
 Finally, wrap that all up in a `Format` constructor:
 
-``` elm
-tweetSummary =
-    Format
-        (\callback starCount body ->
-            callback <| "(" ++ toString starCount ++ ") " ++ body
-        )
-```
+    tweetSummary =
+        Format
+            (\callback starCount body ->
+                callback <| "(" ++ toString starCount ++ ") " ++ body
+            )
 
 And you're done. You have a composable formatting function. It's a
 mechanical process that's probably a bit weird at first, but easy to
 get used to.
+
+Format (\\callback -> g (\\strG -> f (\\strF -> callback (strG ++ strF))))
 
 -}
 type Format r a
     = Format ((String -> r) -> a)
 
 
-compose : Format b a -> Format c b -> Format c a
+compose : Format b a -> Format a c -> Format b c
 compose (Format f) (Format g) =
-    Format (\callback -> f <| \strF -> g <| \strG -> callback <| strF ++ strG)
+    Format (\callback -> g <| \strG -> f <| \strF -> callback <| strG ++ strF)
 
 
 {-| Compose two formatters together.
 -}
-(<>) : Format b a -> Format c b -> Format c a
-(<>) =
+bs : Format b a -> Format a c -> Format b c
+bs =
     compose
-infixr 8 <>
 
 
 {-| Create a new formatter by applying a function to the output of this formatter.
@@ -188,7 +165,8 @@ For example:
 
     import String exposing (toUpper)
 
-    format = s "Name: " <> map toUpper string
+    format =
+        s "Name: " |> bs map toUpper string
 
 ...produces a formatter that uppercases the name:
 
@@ -207,17 +185,14 @@ formatter. The dual of `map`.
 
 For example:
 
-``` elm
-format = s "Height: " <> premap .height float
-```
+    format =
+        s "Height: " |> bs premap .height float
 
 ...produces a formatter that accesses a `.height` record field:
 
-```elm
-print format { height: 1.72 }
+    print format { height: 1.72 }
 
---> "Height: 1.72"
-```
+    --> "Height: 1.72"
 
 -}
 premap : (a -> b) -> Format r (b -> v) -> Format r (a -> v)
@@ -245,26 +220,19 @@ apply (Format f) value =
 
 Given this format:
 
-
-``` elm
-orderFormat =
-    s "FREE: " <> int <> s " x " <> string  <> s "!"
-```
-
+    orderFormat =
+        s "FREE: " |> bs int |> bs s " x " |> bs string |> bs s "!"
 
 ...we can either use it immediately:
 
 
-``` elm
-order : String
-order = print orderFormat 2 "Ice Cream"
+    order : String
+    order =
+        print orderFormat 2 "Ice Cream"
 
---> "FREE: 2 x Ice Cream!"
-```
-
+    --> "FREE: 2 x Ice Cream!"
 
 ...or turn it into an ordinary function to be used later:
-
 
     orderFormatter : Int -> String -> String
     orderFormatter =
@@ -278,6 +246,7 @@ order = print orderFormat 2 "Ice Cream"
     order = orderFormatter 2 "Ice Cream"
 
     --> "FREE: 2 x Ice Cream!"
+
 -}
 print : Format String a -> a
 print (Format format) =
@@ -290,10 +259,11 @@ node as its final result, instead of a `String`.
 Hint: If you're using any formatters where whitespace is sigificant,
 you might well need one or both of these CSS rules:
 
-``` css
+```css
 font-family: monospace;
 white-space: pre;
 ```
+
 -}
 html : Format (Html msg) a -> a
 html (Format format) =
@@ -320,47 +290,32 @@ string =
     Format identity
 
 
-{-| A placeholder for any value that we can call `toString` on.
-
-
-Eagle-eyed readers of the source will notice that we use this same
-function to define `int` and `float`, since `toString` gives us the
-right result for both of those types.
-
-The sole difference is, `int` and `float` have more restrictive type
-signatures.
--}
-any : Format r (a -> r)
-any =
-    toFormatter toString
-
-
 {-| A placeholder for an `Int` argument.
 -}
 int : Format r (Int -> r)
 int =
-    any
+    toFormatter String.fromInt
 
 
 {-| A placeholder for an `Bool` argument.
 -}
 bool : Format r (Bool -> r)
 bool =
-    any
+    toFormatter
+        (\b ->
+            if True then
+                "True"
+
+            else
+                "False"
+        )
 
 
 {-| A placeholder for a `Float` argument.
 -}
 float : Format r (Float -> r)
 float =
-    any
-
-
-{-| A placeholder for a `Number` argument.
--}
-number : Format r (number -> r)
-number =
-    any
+    toFormatter String.fromFloat
 
 
 
@@ -370,28 +325,26 @@ number =
 
 
 {-| `wrap` one string with another. It's convenient for building strings
-like `"Invalid key '<keyname>'."  For example:
+like \`"Invalid key '<keyname>'." For example:
 
-``` elm
-print (wrap "'" string) "tester"
+    print (wrap "'" string) "tester"
 
---> "'tester'"
-```
+    --> "'tester'"
+
 -}
 wrap : String -> Format r a -> Format r a
 wrap wrapping format =
-    s wrapping <> format <> s wrapping
+    s wrapping |> bs format |> bs (s wrapping)
 
 
 {-| `String.pad` lifted into the world of Formatters.
 
 For example:
 
-``` elm
-print (pad 10 '-' string) "KRIS"
+    print (pad 10 '-' string) "KRIS"
 
---> "---KRIS---"
-```
+    --> "---KRIS---"
+
 -}
 pad : Int -> Char -> Format r a -> Format r a
 pad n char =
@@ -402,11 +355,9 @@ pad n char =
 
 For example:
 
-``` elm
-print (padLeft 10 '_' float) 1.72
+    print (padLeft 10 '_' float) 1.72
 
---> "______1.72"
-```
+    --> "______1.72"
 
 -}
 padLeft : Int -> Char -> Format r a -> Format r a
@@ -418,18 +369,17 @@ padLeft n char =
 
 For example:
 
-``` elm
-print (padRight 10 '.' int) 789
+    print (padRight 10 '.' int) 789
 
---> "789......."
-```
+    --> "789......."
+
 -}
 padRight : Int -> Char -> Format r a -> Format r a
 padRight n char =
     map <| String.padRight n char
 
 
-{-| *DEPRECATED*: Use `roundTo` instead.
+{-| _DEPRECATED_: Use `roundTo` instead.
 -}
 dp : Int -> Format r (Float -> r)
 dp =
@@ -444,7 +394,8 @@ roundTo n =
         (\callback value ->
             callback <|
                 if n == 0 then
-                    toString (round value)
+                    String.fromInt (round value)
+
                 else
                     let
                         exp =
@@ -456,16 +407,18 @@ roundTo n =
                         sign =
                             if value < 0.0 then
                                 "-"
+
                             else
                                 ""
 
                         finalFormat =
-                            string <> int <> s "." <> padLeft n '0' int
+                            string |> bs int |> bs (s ".") |> bs (padLeft n '0' int)
                     in
-                        print finalFormat
-                            sign
-                            (raised // exp)
-                            (rem raised exp)
+                    print
+                        finalFormat
+                        sign
+                        (raised // exp)
+                        (remainderBy exp raised)
         )
 
 
@@ -473,12 +426,11 @@ roundTo n =
 
 For example:
 
-``` elm
-print uriFragment "this string"
+    print uriFragment "this string"
 
---> "this%20string"
-```
+    --> "this%20string"
+
 -}
 uriFragment : Format r (String -> r)
 uriFragment =
-    premap Http.encodeUri string
+    premap Url.percentEncode string
