@@ -1,5 +1,10 @@
 # Formatting
 
+** ELM 0.19 Version of [krisajenkins/formatting](https://github.com/krisajenkins/formatting) **
+* no `any()` function
+* no `number()` function
+* `<>` infix operator is now `bs()`
+
 [![Build Status](https://travis-ci.org/krisajenkins/formatting.svg?branch=master)](https://travis-ci.org/krisajenkins/formatting)
 
 A type-safe string formatting library. It fulfils the need for
@@ -28,13 +33,13 @@ We want to display something like `"Hello <name>!"`. It consist of:
 - Another boilerplate string, `"!"`
 
 To create that, we'll build up a formatter using `s` for boilerplate
-strings, `string` for the hole, and `<>` to join them together:
+strings, `string` for the hole, and `bs` to join them together:
 
 ``` elm
 import Formatting exposing (..)
 
 greeting =
-    s "Hello " <> string <> s "!"
+    s "Hello " |> bs string |> bs (s "!")
 ```
 
 Now we print with that formatter, and its arguments:
@@ -93,19 +98,24 @@ easily-composable pieces:
 transform =
     let
         px =
-            int <> s "px"
+            int |> bs (s "px")
 
         deg =
-            float <> s "deg"
+            float |> bs (s "deg")
 
         translate =
-            s "translate(" <> px <> s ", " <> px <> s ")"
+            s "translate(" |> bs px |> bs (s ", ") |> bs px |> bs (s ")")
 
         rotate =
-            s "rotate3d(0, 0, 1, " <> deg <> ")"
+            s "rotate3d(0, 0, 1, " |> bs deg |> bs (s ")")
 
      in
-        translate <> s " " <> rotate
+        translate |> bs (s " ") |> bs rotate
+```
+In the repl:
+```
+> print transform 1 1 2.0
+"translate(1px, 1px) rotate3d(0, 0, 1, 2deg)" : String
 ```
 
 Actually, this is better than `printf` - you can just compose small

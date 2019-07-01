@@ -1,7 +1,7 @@
 {
     "type": "package",
-    "name": "krisajenkins/formatting",
-    "summary": "A type-safe string formatting library - 'printf' for Elm.",
+    "name": "proda-ai/formatting",
+    "summary": "Elm 0.19 of github.com/krisajenkins/formatting type-safe string formatting lib",
     "license": "MIT",
     "version": "4.2.0",
     "exposed-modules": [
