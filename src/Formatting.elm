@@ -27,6 +27,7 @@ runtime guarantees or requiring any language-level changes. It also
 composes well, to make building up complex formatters easy.
 
 @docs Format
+@docs bs
 @docs map
 @docs premap
 @docs toFormatter
@@ -38,7 +39,6 @@ composes well, to make building up complex formatters easy.
 @docs int
 @docs bool
 @docs float
-@docs any
 @docs wrap
 @docs pad
 @docs padLeft
